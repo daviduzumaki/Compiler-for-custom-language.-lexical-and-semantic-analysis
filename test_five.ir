@@ -1,0 +1,8 @@
+CONST	b	=	true
+FUNC:	
+		p	= 5
+		return i
+MAIN:
+		param	i
+		i	=   call func, 1
+		i	=   call best, 0

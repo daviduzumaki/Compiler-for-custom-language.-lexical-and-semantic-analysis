@@ -1,0 +1,9 @@
+CONST	y	=	5
+HELLO:	
+		i	= 1
+		x	= 5
+		return 
+GETISOFF:	
+		return hello
+MAIN:
+		z	=   call getIsOff, 0

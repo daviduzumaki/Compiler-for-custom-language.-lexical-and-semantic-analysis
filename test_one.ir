@@ -1,0 +1,12 @@
+MULTIPLY:	
+		return result
+MAIN:
+		arg_1	= -6
+		arg_2 =  five
+		arg_1	= -5
+		param	arg_1
+		param	arg_2
+		result	=   call multiply, 2
+		param	a_
+		param	b_____
+		x	=   call multi, 2

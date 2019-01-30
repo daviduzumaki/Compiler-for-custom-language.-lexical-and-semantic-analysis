@@ -1,0 +1,20 @@
+public enum DataType {
+  SimpleNode,
+  Program,
+  VarDecl,
+  ConstDecl,
+  Func,
+  FuncReturn,
+  ParamList,
+  Main,
+  Stm,
+  IfStatement,
+  WhileStatement,
+  Assign,
+  Bool,
+  Num,
+  LogicalOp,
+  ArithOp,
+  ArgList,
+  TypeUnknown
+}

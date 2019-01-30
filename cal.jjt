@@ -1,0 +1,341 @@
+/*******************************
+***** SECTION 1 - OPTIONS *****
+*******************************/
+
+options {
+
+JAVA_UNICODE_ESCAPE = true;
+IGNORE_CASE = true;
+VISITOR = true;
+MULTI = true;
+NODE_DEFAULT_VOID = true;
+NODE_PREFIX = "";
+
+ }
+
+/*********************************
+***** SECTION 2 - USER CODE *****
+*********************************/
+
+PARSER_BEGIN(cal)
+
+import java.io.*;
+import java.util.*;
+
+   public class cal {
+
+   public static SymbolTable st = new SymbolTable();
+   public static String scope = "global";
+
+   public static void main(String args[]) throws ParseException, FileNotFoundException {
+
+
+
+   // Initialise parser
+
+           if (args.length < 1){
+               System.out.println("No file found.");
+               System.exit(1);
+           }
+
+    else if (args.length == 1){
+
+    cal parser = new cal(new FileInputStream(args[0]));
+
+    //Abstract Syntax Tree
+    SimpleNode root = parser.program();
+    System.out.println("Abstract Syntax Tree:");
+    System.out.println("------------------------------------------------");
+    root.dump("");
+
+    //Symbol Table
+    System.out.println("------------------------------------------------");
+    System.out.println("Symbol Table:");
+System.out.println();
+    st.print();
+    System.out.println("------------------------------------------------");
+
+
+    // semantic analysis
+    System.out.println("Semantic Analysis:");
+System.out.println();
+    TypeCheckVisitor tcv = new TypeCheckVisitor();
+    root.jjtAccept(tcv, st);
+
+System.out.println("------------------------------------------------");
+    //3 Address Code
+    System.out.println("3-Address Code Interpreter:");
+    System.out.println();
+
+    threeaddresscode tac = new threeaddresscode();
+    root.jjtAccept(tac,null);
+
+
+
+
+
+
+    }
+  }
+}
+
+
+
+PARSER_END(cal)
+
+//Ignore all white space, comments and nested comments.
+SKIP:
+{
+	< " " | "\t" | "\n" | "\r" | "\r\n" >
+	| < "//" (~["\n","\r"])* ("\n"|"\r"|"\r\n") >
+	| < "/*" (~[])* "*/" >
+}
+
+
+
+
+
+// Operators
+TOKEN:
+{
+	<COMMA: ",">
+	| <SEMICOLON: ";">
+	| <COLON: ":">
+	| <ASSIGN: ":=">
+	| <LPAREN: "(">
+	| <RPAREN: ")">
+	| <PLUS: "+">
+	| <MINUS: "-">
+	| <NOT: "~">
+	| <OR: "|">
+	| <AND: "&">
+	| <EQUAL: "=">
+	| <NEQUAL: "!=">
+	| <LT: "<">
+	| <LTE: "<=">
+	| <GT: ">">
+	| <GTE: ">=">
+}
+
+
+// Reserved Tokens
+TOKEN:
+{
+	<VARIABLE: "variable">
+	| <CONSTANT: "constant">
+	| <RETURN: "return">
+	| <INTEGER: "integer">
+	| <BOOLEAN: "boolean">
+	| <VOID: "void">
+	| <MAIN: "main">
+	| <IF: "if">
+	| <ELSE: "else">
+	| <TRUE: "true">
+	| <FALSE: "false">
+	| <WHILE: "while">
+	| <BEGIN: "begin">
+	| <END: "end">
+	| <IS: "is">
+	| <SKP: "skip">
+}
+
+
+TOKEN:
+{
+   < #DIGIT: ["0"-"9"] >
+ | < #CHAR: ["a"-"z" ] | ["A"-"Z"] >
+ | < NUM: (<MINUS>)?"0"| ["1"-"9"](< DIGIT >)* >
+ | < ID: (< CHAR >) ((< DIGIT >) | (< CHAR >)| "_")* >
+}
+
+
+
+/*********************************
+***** SECTION 4 - Grammar *****
+*********************************/
+//Splitting all production rules from Assignment 1 in order to tag with # properly.
+//Essentially, don't use the Kleene closure like before
+
+SimpleNode program() #Program : {}
+{
+    DeclarationList()
+		FunctionList()
+		Main()
+		{return jjtThis;}
+}
+
+void DeclarationList() : {}
+{
+    (Declaration() <SEMICOLON> DeclarationList() | {})
+}
+
+void Declaration() : {}
+{
+    VariableDeclaration()
+
+|   ConstantDeclaration()
+}
+
+
+
+
+void ConstantDeclaration() #Const : {Token t; String id; String type;}
+{
+    t = <CONSTANT> id = Identifier() <COLON> type = Type() <ASSIGN> Expression()
+    {
+        jjtThis.value = t.image;
+        st.put(id, type, "const", scope);
+    }
+}
+
+void VariableDeclaration() #Var : {Token t; String id; String type;}
+{
+    t = <VARIABLE> id = Identifier() <COLON> type = Type()
+    {
+        jjtThis.value = t.image;
+        st.put(id, type, "var", scope);
+    }
+}
+
+
+void FunctionList() : {}
+{
+    (Function() FunctionList() | {})
+}
+
+void Function() #Function : {Token t; String type; String id;}
+{
+    (type = Type() id = Identifier() {st.put(id, type, "function", scope);
+
+    if(!scope.equals("global")) {
+        st.put(id, type, "function", "global");
+        }
+     scope = id;} <LPAREN> ParameterList() <RPAREN> <IS>
+    DeclarationList()
+    <BEGIN>
+    StatementBlock()
+    <RETURN> <LPAREN> (Expression() | {}) <RPAREN> <SEMICOLON> #Return
+    <END>)
+}
+
+void FunctionReturn() : {Token t;}
+{
+    <RETURN> <LPAREN> (Expression() | {}) <RPAREN> <SEMICOLON>
+}
+
+String Type() #Type : {Token t;}
+{
+    t = <INTEGER> {jjtThis.value = t.image; return t.image; }
+|   t = <BOOLEAN>  {jjtThis.value = t.image; return t.image; }
+|   t = <VOID>  {jjtThis.value = t.image; return t.image; }
+}
+
+void ParameterList()  : {}
+{
+    paramlist_non()
+|   {}
+}
+
+void paramlist_non() #ParameterList(>1) : {String id; String type;}
+{
+    id = Identifier() <COLON> type = Type() paramlist_nonextend()
+    { st.put(id, type, "param", scope);}
+}
+
+void paramlist_nonextend() : {}
+{
+    <COMMA> paramlist_non()
+|   {}
+}
+
+void Main() #Main : {}
+{
+    {scope = "main";}(<MAIN>
+    <BEGIN>
+    DeclarationList()
+    StatementBlock()
+    <END>)
+}
+
+void StatementBlock() : {}
+{
+    (Statement() StatementBlock())
+|   {}
+}
+
+void Statement() #Statement : {Token t;}
+{
+    Identifier() Statement_choiceFix()
+|   (<BEGIN> StatementBlock() <END>)
+|   (t = <IF> Condition() <BEGIN> StatementBlock() <END> <ELSE> <BEGIN> StatementBlock() <END> {jjtThis.value = t.image;} )
+|   (t = <WHILE> Condition() <BEGIN> StatementBlock() <END> {jjtThis.value = t.image;} )
+|   (<SKP> <SEMICOLON>)
+}
+
+void Statement_choiceFix() : {Token t;}
+{
+    t = <ASSIGN> Expression() <SEMICOLON> {jjtThis.value = t.image; } #Assign
+|   t = <LPAREN> ArgList() <RPAREN> <SEMICOLON> #FuncAssign
+|   {}
+}
+
+void Expression(): {}
+{
+    (Fragment() Fragment_choiceFix())
+|   (<LPAREN> Expression() <RPAREN> Fragment_choiceFix())
+}
+
+
+
+void BinaryOperator() : {Token t;}
+{
+    t = <PLUS> {jjtThis.value = t.image;} #Plus
+|   t = <MINUS> {jjtThis.value = t.image;} #Minus
+}
+
+void Fragment() : {Token t;}
+{
+    <MINUS> Identifier() #Minus
+|   t = <NUM> {jjtThis.value = t.image; } #Number
+|   t = <TRUE> {jjtThis.value = t.image; } #Boolean
+|   t = <FALSE> {jjtThis.value = t.image; } #Boolean
+|   (t = <ID> [<LPAREN> ArgList() <RPAREN>] {jjtThis.value = t.image;} )#FunctionReturn
+}
+
+void Fragment_choiceFix() : {}
+{
+    BinaryOperator() Expression()
+|   {}
+}
+
+//Need to remove the choice conflict so need to split it. Could do it in like assignment one but then I can't tag properly.
+void Condition() : {}
+{
+    (<NOT> Condition() Condition_choiceFix())
+|   LOOKAHEAD(3) <LPAREN> Condition() <RPAREN> Condition_choiceFix()
+|   (Expression() Comp_op() Condition_choiceFix())
+}
+
+void Condition_choiceFix() : {Token t;}
+{
+    t = <OR> Condition() {jjtThis.value = t.image;} #OR
+|   t = <AND> Condition() {jjtThis.value = t.image;} #AND
+|   {}
+}
+
+void Comp_op() #Comparison: {Token t;}
+{
+    t = <EQUAL> Expression() {jjtThis.value = t.image;} #Equals
+|   t = <NEQUAL> Expression() {jjtThis.value = t.image;} #NEQUAL
+|   t = <LT> Expression() {jjtThis.value = t.image;} #LT
+|   t = <LTE> Expression() {jjtThis.value = t.image;} #LTE
+|   t = <GT> Expression() {jjtThis.value = t.image;} #GT
+|   t = <GTE> Expression() {jjtThis.value = t.image;} #GTE
+}
+
+void ArgList()#ArgList:{}
+{[NonEmptyArgList()]}
+void NonEmptyArgList():{}
+{Identifier()[<COMMA>NonEmptyArgList()]}
+String Identifier()#ID:{Token t;}
+{t=<ID>{jjtThis.value=t.image;return t.image;}}
